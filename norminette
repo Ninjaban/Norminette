@@ -1,0 +1,12 @@
+#!/bin/bash
+
+FLAGS_GREP='-s -R -n'
+
+if [[ "$1" ]]
+then
+FILES="$*"
+else
+FILES='*.c'
+fi
+
+grep $FLAGS_GREP -n -v -E '\s+return\s\(.+\);' $FILES | grep -v -E '\s+return ;' | grep -E '\s+return.*' | grep -v -E ':\s*\*\*' | grep -v -E ':\s*\/\*' | grep -v -E ':\s*\/\/'
