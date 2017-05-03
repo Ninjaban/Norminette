@@ -1,12 +1,32 @@
 #!/bin/bash
 
-FLAGS_GREP='-s -R -n'
+FLAGS_GREP='-s -n -h'
 
 if [[ "$1" ]]
 then
-FILES="$*"
+PATH_FILES='$*'
 else
-FILES='*.c'
+PATH_FILES='.'
 fi
 
-grep $FLAGS_GREP -n -v -E '\s+return\s\(.+\);' $FILES | grep -v -E '\s+return ;' | grep -E '\s+return.*' | grep -v -E ':\s*\*\*' | grep -v -E ':\s*\/\*' | grep -v -E ':\s*\/\/'
+## READ FILE ONE BY ONE
+
+find $PATH_FILES -name "*.c" | 
+while read FILE
+do
+
+## PRINT NAME OF THE CURRENT FILE
+  echo "$FILE"
+
+## BAD RETURN
+
+  grep $FLAGS_GREP -v -E '\s+return\s*\(.+\)\s*;' $FILE | grep -v -E '\s+return\s*;' | grep -E '\s+return.*' | grep -v -E ':\s*\*\*' | grep -v -E ':\s*\/\*' | grep -v -E ':\s*\/\/' |
+while read LINE
+do
+  echo -n "line "
+  LINE=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
+  echo -e "$LINE\t: Bad return"
+done
+
+## END OF READ FILE
+done

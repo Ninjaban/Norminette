@@ -7,6 +7,9 @@ int		main()
   return ();
   return;
   return ;
+  return 2;
+  return (;
+  return );
   /*
   **return();
   */
