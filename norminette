@@ -1,10 +1,11 @@
 #!/bin/bash
 
-FLAGS_GREP='-s -n -h'
+export IFS=$' \n'
+FLAGS_GREP='-s -h'
 
 if [[ "$1" ]]
 then
-PATH_FILES='$*'
+PATH_FILES="$*"
 else
 PATH_FILES='.'
 fi
@@ -18,14 +19,173 @@ do
 ## PRINT NAME OF THE CURRENT FILE
   echo "$FILE"
 
+## READ LINE BY LINE
+
+  INDENT=0
+  INDENT_TMP=0
+  INDENT_LOCK=0
+  grep $FLAGS_GREP -n -E '.*' $FILE | cat -e |
+  while read LINE
+do
+
+## NB TAB AFF
+
+NB=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
+if [[ $NB -ge 100 ]]
+then
+AFF_TAB=""
+else
+AFF_TAB="\t"
+fi
+
+## IGNORE COMMENT
+
+FIND=`echo $LINE | grep -v -E ':\s*\*\*' | grep -v -E ':\s*\/\*' | grep -v -E ':\s*\/\/'`
+if [[ FIND ]]
+then
+
+## LINE LEN
+
+#NB=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
+#LEN=`expr ${#LINE} - ${#NB} - 1`
+#if [[ $LEN -gt 81 ]]
+#then
+#  echo -n "line "
+#  MATCH=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
+#  echo -e "$MATCH$AFF_TAB: More than 80 character"
+#fi
+
 ## BAD RETURN
 
-  grep $FLAGS_GREP -v -E '\s+return\s*\(.+\)\s*;' $FILE | grep -v -E '\s+return\s*;' | grep -E '\s+return.*' | grep -v -E ':\s*\*\*' | grep -v -E ':\s*\/\*' | grep -v -E ':\s*\/\/' |
-while read LINE
-do
+  FIND=`echo $LINE | grep -v -E '\s+return\s*\(.+\)\s*;' | grep -v -E '\s+return\s*;' | grep -E '\s+return.*'`
+if [[ $FIND ]]
+then
   echo -n "line "
-  LINE=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
-  echo -e "$LINE\t: Bad return"
+  MATCH=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
+  echo -e "$MATCH$AFF_TAB: Bad return"
+fi
+
+## BAD SPACING
+
+  FIND=`echo $LINE | grep -E '\s+\$$'`
+if [[ $FIND ]]
+then
+  echo -n "line "
+  MATCH=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
+  echo -e "$MATCH$AFF_TAB: Space at the end of the line"
+fi
+
+## BAD INDENTATION
+
+  FIND=`echo $LINE | grep -v -E '[a-zA-Z0-9_*]+[[:blank:]]+[a-zA-Z0-9_*]+(.*)\$$' | grep -E '^\d+:[[:blank:]]*[a-zA-Z0-9_*]+[[:blank:]]+[a-zA-Z0-9_*]+' | grep -v -P '[a-zA-Z0-9_]+\t+[a-zA-Z0-9_*]+;\$$'`
+if [[ $FIND ]]
+then
+  echo -n "line "
+  MATCH=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
+  echo -e "$MATCH$AFF_TAB: Bad indentation"
+fi
+
+  FIND=`echo $LINE | grep -E '^\d+:[[:blank:]]*[a-zA-Z0-9_*]+[[:blank:]]+[a-zA-Z0-9_*]+(.*)\$$' | grep -v -P '^\d+:[a-zA-Z0-9_]+\t+[a-zA-Z0-9_*]+'`
+if [[ $FIND ]]
+then
+echo $LINE
+  echo -n "line "
+  MATCH=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
+  echo -e "$MATCH$AFF_TAB: Bad indentation"
+fi
+
+## INDENT 
+
+### IGNORE EMPTY LINE
+
+#echo $LINE | grep -v -P '^\d+:[[:blank:]]*\$$'
+FIND=$(echo $LINE | grep -v -P '^\d+:[[:blank:]]*\$$')
+if [[ $FIND ]]
+then
+
+### IGNORE CUT LINE
+
+OPEN=`echo $LINE | grep -o '(' | wc -l`
+CLOSE=`echo $LINE | grep -o ')' | wc -l`
+
+if [[ $OPEN -ge $CLOSE ]]
+then
+
+  FIND=`echo $LINE | grep -P '^\d+:[[:blank:]]*\}[[:blank:]]*'`
+if [[ $FIND ]]
+then
+INDENT=`expr $INDENT - 1`
+INDENT_LOCK=2
+fi
+
+  FIND=`echo $LINE | grep $FLAGS_GREP -P '^\d+:[[:blank:]]*\{[[:blank:]]*'`
+if [[ $FIND && $INDENT_TMP != 0 ]]
+then
+NB=`expr $INDENT + $INDENT_TMP - 1`
+else
+NB=`expr $INDENT + $INDENT_TMP`
+fi
+
+### SEARCH AND AFF THE ERROR OF INDENT
+
+  FIND=`echo $LINE | grep -v -P "^\d+:\t{$NB}\S"`
+if [[ $FIND ]]
+then
+  echo -n "line "
+  MATCH=`echo -n "$LINE" | sed -e 's/:/\t/g' | cut -f 1`
+  NB=`expr $INDENT + $INDENT_TMP`
+  echo -e "$MATCH$AFF_TAB: Must begin by only $NB tab"
+fi
+
+  FIND=`echo $LINE | grep -P '^\d+:[[:blank:]]*\{[[:blank:]]*'`
+if [[ $FIND ]]
+then
+INDENT=`expr $INDENT + 1`
+if [[ $INDENT_TMP -gt 1 ]]
+then
+INDENT_LOCK=1
+INDENT_TMP=`expr $INDENT_TMP - 1`
+fi
+fi
+
+FIND=`echo $LINE | grep -v -P '^\d+:[[:blank:]]*\}[[:blank:]]*'`
+if [[ $FIND ]]
+then
+    FIND=`echo $LINE | grep -E 'if[[:blank:]]*\(.*\)'`
+    FIND=$FIND`echo $LINE | grep -E 'else[[:blank:]]*'`
+    FIND=$FIND`echo $LINE | grep -E 'while[[:blank:]]*\(.*\)'`
+    FIND=$FIND`echo $LINE | grep -E 'for[[:blank:]]*\(.*\)'`
+fi
+
+if [[ $FIND ]]
+then
+INDENT_TMP=`expr $INDENT_TMP + 1`
+fi
+
+if [[ -z $FIND && $INDENT_LOCK = 0 ]]
+then
+INDENT_TMP=0
+fi
+
+if [[ $INDENT_LOCK = 2 ]]
+then
+INDENT_LOCK=0
+fi
+
+### END IGNORE CUT LINE
+
+fi
+
+### END IGNORE EMPTY LINE
+
+fi
+
+## END IGNORE COMMENT
+
+fi
+
+## END OF READ LINE
+
 done
 
 ## END OF READ FILE

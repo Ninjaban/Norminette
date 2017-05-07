@@ -1,6 +1,11 @@
-int main() 
+int main(char ac, char **av)
 { 
-  return ; 
+	char	a;
+	char	*b; 
+	char c;
+	char  d;
+
+	return ;
+ return ; 
 return ;
- return ;
- }
+}
